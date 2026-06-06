@@ -46,6 +46,32 @@ agent that connects, then fans the merged board back out to all of them — a ti
 distributed blackboard. Use this when you want a stable hub sharing state to N
 clients, versus Hyperswarm's topic-based many-to-many discovery.
 
+## `dht-rpc.js` — give an agent the full P2P toolkit
+
+```sh
+bare examples/dht-rpc.js
+```
+
+Registers the entire Holepunch stack as AI-callable tools via `examples/tools/p2p.js`,
+then asks a single agent to use them live: join a Hyperswarm topic, check peers,
+broadcast a message, read replies, and close. The agent decides when and how to call
+each tool — no JS orchestration driving it.
+
+Tools available after `registerP2PTools(bc)`:
+
+| Tool | What it does |
+|---|---|
+| `swarm_join` | Join a named mesh topic, get a swarmId |
+| `swarm_broadcast` | Send to all connected peers |
+| `swarm_messages` | Poll the buffered inbox |
+| `swarm_peers` | List connected peer keys |
+| `swarm_close` | Leave and disconnect |
+| `dht_serve` | Start a server with a stable public key |
+| `dht_connect` | Connect to a server by z32 or hex key |
+| `dht_send` / `dht_messages` | Send and receive over that connection |
+| `key_info` | z32 ↔ hex ↔ byte-length conversion |
+| `codec_encode` / `codec_decode` | Encode/decode with a compact-encoding codec file |
+
 ## `swarm-code-review.js` — a multi-agent code review panel
 
 ```sh
