@@ -7,7 +7,7 @@
 <p align="center">
   <b>picoclaw</b> — the Go AI agent — wrapped as a <b>Bare</b> library, spoken to entirely over RPC.
   <br>
-  State lives in a <a href="https://github.com/holepunchto/hyperbee">Hyperbee</a>. The Go side never touches your terminal.
+  State lives in a <a href="https://github.com/holepunchto/hyperbee2">Hyperbee</a>. The Go side never touches your terminal.
 </p>
 
 <p align="center">
