@@ -26,7 +26,7 @@ const WAIT_MS = 3000
 
 main()
 
-async function main () {
+async function main() {
   // Stand up decoy peers and flush them to the DHT before the agent starts.
   const decoys = []
   for (let i = 0; i < DECOYS; i++) {
@@ -46,7 +46,7 @@ async function main () {
   // Spin up the agent and give it every P2P tool.
   const store = new Corestore('./store-p2p-agent')
   await store.ready()
-  const bc = new Bareclaw(store, { provider: 'ollama', model: 'llama3.2' })
+  const bc = new Bareclaw(store, { provider: 'ollama', model: 'lfm2.5' })
   await bc.ready()
 
   await registerP2PTools(bc)
@@ -97,7 +97,7 @@ async function main () {
 }
 
 // Briefly join the topic as a client, count distinct peers found, then leave.
-async function scanTopic (topic, ms) {
+async function scanTopic(topic, ms) {
   const swarm = new Hyperswarm()
   const seen = new Set()
   swarm.on('connection', (socket, info) => {
