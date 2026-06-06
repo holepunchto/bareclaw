@@ -10,9 +10,12 @@ import (
 )
 
 // rpcStreamer implements bus.Streamer over a bare-rpc OutgoingStream.
-// One instance is created per in-flight CHAT request.
+// One instance is created per in-flight CHAT request. It emits Content frames
+// as the model streams; the terminal Done/Error frame is owned by handleChat so
+// the contract holds whether or not the provider actually streamed.
 type rpcStreamer struct {
-	stream *bare.OutgoingStream
+	stream    *bare.OutgoingStream
+	published bool
 }
 
 func newStreamer(stream *bare.OutgoingStream) *rpcStreamer {
@@ -25,14 +28,16 @@ func (s *rpcStreamer) Update(_ context.Context, content string) error {
 	if err != nil {
 		return err
 	}
-	_, err = s.stream.Write(data)
-	return err
+	if _, err = s.stream.Write(data); err != nil {
+		return err
+	}
+	s.published = true
+	return nil
 }
 
-func (s *rpcStreamer) Finalize(_ context.Context, content string) error {
-	chunk := ChatChunk{Type: ChunkDone, Content: content}
-	data, _ := c.Marshal(&chunk)
-	_, _ = s.stream.Write(data)
+func (s *rpcStreamer) Finalize(_ context.Context, _ string) error {
+	// The terminal Done frame is sent by handleChat, which has the authoritative
+	// final response even when streaming was never engaged.
 	return nil
 }
 

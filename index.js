@@ -1,118 +1,141 @@
-import { spawnRPC } from './lib/spawn.js'
-import * as codecs from './lib/codecs.js'
+const Hyperbee = require('hyperbee2')
+const ReadyResource = require('ready-resource')
+const b4a = require('b4a')
 
-export class Picoclaw {
-  constructor (store, opts = {}) {
-    this._store = store  // Hyperbee instance or null
+const { spawnRPC } = require('./lib/spawn.js')
+const codecs = require('./lib/codecs.js')
+
+class Bareclaw extends ReadyResource {
+  constructor(store, opts = {}) {
+    super()
+
+    this._store = store
+    this._bee = new Hyperbee(this._store)
     this._opts = opts
     this._rpc = null
     this._proc = null
     this._tools = new Map()
-    this._ready = false
+
+    this.ready().catch(noop)
   }
 
-  async ready () {
-    const { rpc, proc } = spawnRPC({
-      binary: this._opts.binary,
-      config: this._opts.config
-    })
+  async _open() {
+    await this._bee.ready()
+
+    const { rpc, proc } = spawnRPC(this._opts, (req) => this._onRequest(req))
     this._rpc = rpc
     this._proc = proc
 
-    // Handle Go → JS callbacks
-    rpc.on('request', (req) => this._onRequest(req))
-
-    // Restore state from Hyperbee before the first turn
-    if (this._store) await this._loadFromStore()
-
-    this._ready = true
+    await this._loadFromStore()
   }
 
-  // chat(sessionId, message, opts?) → AsyncGenerator of chunks
-  // Each chunk: { type, content } where type is CHUNK_* constant
-  async * chat (sessionId, message, opts = {}) {
-    this._assertReady()
+  async _close() {
+    if (!this._rpc) return
+
+    // Flush each session's final state into the bee before tearing Go down.
+    const keys = await this._listStoreKeys('picoclaw/sessions/')
+    for (const key of keys) await this._persistSession(key)
+    await this._bee.close()
+
+    await this._shutdownProc()
+    this._rpc = null
+    this._proc = null
+    this._bee = null
+  }
+
+  // Go's RPC loop blocks on a stdin read; SIGTERM is trapped by its signal
+  // handler but can't interrupt that read. Closing stdin delivers EOF, so Go
+  // returns from Listen and exits cleanly. SIGKILL is a backstop if it doesn't.
+  _shutdownProc() {
+    const proc = this._proc
+    return new Promise((resolve) => {
+      const force = setTimeout(() => proc.kill(9), 2000)
+      proc.once('exit', () => {
+        clearTimeout(force)
+        resolve()
+      })
+      proc.stdin.end()
+    })
+  }
+
+  async *chat(sessionId, message, opts = {}) {
+    if (!this.opened) await this.ready()
     const req = this._rpc.request(codecs.CMD_CHAT)
-    await req.send(codecs.chatRequest.encode({
-      sessionId,
-      message,
-      model: opts.model || this._opts.model || ''
-    }))
+    req.send(
+      codecs.chatRequest.encode({
+        sessionId,
+        message,
+        model: opts.model || this._opts.model || ''
+      })
+    )
 
     const stream = req.createResponseStream()
     for await (const chunk of stream) {
-      const decoded = codecs.chatChunk.decode(chunk)
-      yield decoded
-      if (decoded.type === codecs.CHUNK_DONE || decoded.type === codecs.CHUNK_ERROR) break
+      const { type, content } = codecs.chatChunk.decode(chunk)
+      const name = codecs.CHUNK_TYPE_NAMES[type]
+      const done = name === 'done' || name === 'error'
+
+      if (done) {
+        yield { type: name, done }
+        break
+      } else {
+        yield { type: name, content, done }
+      }
     }
+
+    // Persist the (now updated) session history into the bee automatically.
+    await this._persistSession(sessionId)
   }
 
-  // session(scope) → sessionId string
-  async session (scope = {}) {
-    this._assertReady()
-    const reply = await this._rpc.request(
-      codecs.CMD_SESSION_CREATE,
-      codecs.sessionScope.encode(scope)
-    )
-    return codecs.sessionKey.decode(reply).key
+  async session(scope = {}) {
+    if (!this.opened) await this.ready()
+    const req = this._rpc.request(codecs.CMD_SESSION_CREATE)
+    req.send(codecs.sessionScope.encode(scope))
+    const reply = await req.reply()
+    const key = codecs.sessionKey.decode(reply).key
+
+    // The bee is the session registry — record the scope so the session is
+    // listed (and survives restarts) even before any chat history exists.
+    const w = this._bee.write()
+    w.tryPut(b4a.from(`picoclaw/sessions/${key}/scope`), b4a.from(JSON.stringify(scope)))
+    await w.flush()
+
+    return key
   }
 
-  // sessions() → string[]
-  async sessions () {
-    this._assertReady()
-    const reply = await this._rpc.request(codecs.CMD_SESSION_LIST, null)
-    return codecs.sessionList.decode(reply)
+  async sessions() {
+    if (!this.opened) await this.ready()
+    return this._listStoreKeys('picoclaw/sessions/')
   }
 
-  // exportSession(key) → Buffer (opaque blob for Hyperbee)
-  async exportSession (key) {
-    this._assertReady()
-    return this._rpc.request(
-      codecs.CMD_SESSION_EXPORT,
-      codecs.sessionKey.encode({ key })
-    )
+  async exportSession(key) {
+    if (!this.opened) await this.ready()
+    const req = this._rpc.request(codecs.CMD_SESSION_EXPORT)
+    req.send(codecs.sessionKey.encode({ key }))
+    const reply = await req.reply()
+    return codecs.sessionBlob.decode(reply).data
   }
 
-  // importSession(key, blob) — restore a session from a Hyperbee blob
-  async importSession (key, blob) {
-    this._assertReady()
-    await this._rpc.request(
-      codecs.CMD_SESSION_IMPORT,
-      codecs.sessionBlob.encode({ key, data: blob })
-    )
+  async importSession(key, blob) {
+    if (!this.opened) await this.ready()
+    const req = this._rpc.request(codecs.CMD_SESSION_IMPORT)
+    req.send(codecs.sessionBlob.encode({ key, data: blob }))
+    await req.reply()
+
+    const w = this._bee.write()
+    w.tryPut(b4a.from(`picoclaw/sessions/${key}/data`), blob)
+    await w.flush()
   }
 
-  // registerTool(name, description, schema, handler)
-  // handler(input) → output  (both plain JS objects, serialised as JSON)
-  async registerTool (name, description, schema, handler) {
-    this._assertReady()
+  async registerTool(name, description, schema, handler) {
+    if (!this.opened) await this.ready()
     this._tools.set(name, handler)
-    await this._rpc.request(
-      codecs.CMD_TOOL_REGISTER,
-      codecs.toolDef.encode({ name, description, inputSchema: schema })
-    )
+    const req = this._rpc.request(codecs.CMD_TOOL_REGISTER)
+    req.send(codecs.toolDef.encode({ name, description, inputSchema: schema }))
+    await req.reply()
   }
 
-  async close () {
-    if (!this._rpc) return
-    if (this._store) {
-      const blob = await this._rpc.request(codecs.CMD_STATE_EXPORT, null)
-      await this._store.put('picoclaw/snapshot', blob)
-    }
-    this._rpc.destroy()
-    this._proc.kill()
-    this._rpc = null
-    this._proc = null
-    this._ready = false
-  }
-
-  // --- internals ---
-
-  _assertReady () {
-    if (!this._ready) throw new Error('bareclaw: call await picoclaw.ready() first')
-  }
-
-  async _onRequest (req) {
+  async _onRequest(req) {
     switch (req.command) {
       case codecs.CMD_TOOL_EXEC: {
         const call = codecs.toolCall.decode(req.data)
@@ -121,62 +144,61 @@ export class Picoclaw {
           const output = handler ? await handler(call.input) : null
           await req.reply(codecs.toolResult.encode({ callId: call.callId, output }))
         } catch (err) {
-          await req.reply(codecs.toolResult.encode({
-            callId: call.callId,
-            output: null,
-            errMsg: err.message || String(err)
-          }))
+          await req.reply(
+            codecs.toolResult.encode({
+              callId: call.callId,
+              output: null,
+              errMsg: err.message || String(err)
+            })
+          )
         }
         break
       }
 
       case codecs.CMD_STATE_CHANGED: {
-        if (!this._store) break
+        if (!this._bee) break
         const chunk = codecs.stateChunk.decode(req.data)
-        const field = chunk.field === codecs.STATE_FIELD_SUMMARY ? 'summary' : 'history'
-        await this._store.put(`picoclaw/sessions/${chunk.sessionKey}/${field}`, chunk.data)
+        await this._persistSession(chunk.sessionKey)
         break
       }
     }
   }
 
-  async _loadFromStore () {
+  // Export a session's current state from Go and store it in the bee under its
+  // canonical per-session key. Safe to call after any turn that mutated state.
+  async _persistSession(key) {
+    if (!this._rpc || !this._bee) return
+    const blob = await this.exportSession(key)
+    const w = this._bee.write()
+    w.tryPut(b4a.from(`picoclaw/sessions/${key}/data`), blob)
+    await w.flush()
+  }
+
+  async _loadFromStore() {
+    // Restore each persisted session into Go so chat history survives restarts.
     const keys = await this._listStoreKeys('picoclaw/sessions/')
     for (const sessionKey of keys) {
-      const historyEntry = await this._store.get(`picoclaw/sessions/${sessionKey}/history`)
-      const summaryEntry = await this._store.get(`picoclaw/sessions/${sessionKey}/summary`)
-      if (!historyEntry && !summaryEntry) continue
+      const entry = await this._bee.get(b4a.from(`picoclaw/sessions/${sessionKey}/data`))
+      if (!entry || !entry.value || entry.value.length === 0) continue
 
-      const data = this._assembleSessionBlob(
-        historyEntry ? historyEntry.value : null,
-        summaryEntry ? summaryEntry.value : null
-      )
-      await this._rpc.request(
-        codecs.CMD_SESSION_IMPORT,
-        codecs.sessionBlob.encode({ key: sessionKey, data })
-      )
+      const req = this._rpc.request(codecs.CMD_SESSION_IMPORT)
+      req.send(codecs.sessionBlob.encode({ key: sessionKey, data: entry.value }))
+      await req.reply()
     }
   }
 
-  // Collect unique session keys from Hyperbee key prefixes like
-  // "picoclaw/sessions/<key>/history"
-  async _listStoreKeys (prefix) {
+  async _listStoreKeys(prefix) {
     const seen = new Set()
-    for await (const entry of this._store.createReadStream({ gte: prefix, lt: prefix + '\xff' })) {
-      const rest = entry.key.slice(prefix.length)
+    const range = { gte: b4a.from(prefix), lt: b4a.from(prefix + '\xff') }
+    for await (const entry of this._bee.createReadStream(range)) {
+      const rest = entry.key.toString().slice(prefix.length)
       const sessionKey = rest.split('/')[0]
       if (sessionKey) seen.add(sessionKey)
     }
     return [...seen]
   }
-
-  // Reconstruct the JSON envelope that Go's unmarshalSessionPayload expects:
-  // { "h": [raw messages], "s": "summary" }
-  _assembleSessionBlob (historyBuf, summaryBuf) {
-    // The history blob stored per-chunk IS the JSON already, but the SessionBlob
-    // on the Go side expects the full { h, s } JSON envelope.
-    const h = historyBuf ? JSON.parse(historyBuf.toString()) : []
-    const s = summaryBuf ? summaryBuf.toString() : ''
-    return Buffer.from(JSON.stringify({ h, s }))
-  }
 }
+
+module.exports = { Bareclaw }
+
+function noop() {}

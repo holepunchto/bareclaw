@@ -19,10 +19,10 @@ const (
 
 // ChatChunk.Type values.
 const (
-	ChunkContent uint8 = 0
+	ChunkContent  uint8 = 0
 	ChunkThinking uint8 = 1
-	ChunkDone    uint8 = 2
-	ChunkError   uint8 = 3
+	ChunkDone     uint8 = 2
+	ChunkError    uint8 = 3
 )
 
 // StateChunk.Field values.

@@ -4,8 +4,8 @@ go 1.25.11
 
 require (
 	github.com/holepunchto/bare-rpc-golang v1.1.0
-	github.com/holepunchto/compact-encoding-golang v1.1.0
-	github.com/sipeed/picoclaw v0.2.9
+	github.com/holepunchto/compact-encoding-golang v1.2.0
+	github.com/sipeed/picoclaw v0.2.10-0.20260605185229-89ee8f1b39bd
 )
 
 require (
@@ -85,10 +85,4 @@ require (
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.11.0 // indirect
 	modernc.org/sqlite v1.51.0 // indirect
-)
-
-replace (
-	github.com/holepunchto/bare-rpc-golang => ../../go-rpc
-	github.com/holepunchto/compact-encoding-golang => ../../compact-encoding-golang
-	github.com/sipeed/picoclaw => ../../picoclaw
 )

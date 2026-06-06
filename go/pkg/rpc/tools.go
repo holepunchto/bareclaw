@@ -44,8 +44,8 @@ type jsBackedTool struct {
 	server      *Server
 }
 
-func (t *jsBackedTool) Name() string           { return t.name }
-func (t *jsBackedTool) Description() string    { return t.description }
+func (t *jsBackedTool) Name() string               { return t.name }
+func (t *jsBackedTool) Description() string        { return t.description }
 func (t *jsBackedTool) Parameters() map[string]any { return t.schema }
 
 func (t *jsBackedTool) Execute(ctx context.Context, args map[string]any) *toolshared.ToolResult {

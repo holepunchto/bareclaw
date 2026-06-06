@@ -3,33 +3,69 @@ package main
 import (
 	"context"
 	"flag"
-	"fmt"
 	"io"
 	"log"
 	"os"
 	"os/signal"
 	"syscall"
 
-	"github.com/sipeed/picoclaw/pkg/bus"
 	"github.com/sipeed/picoclaw/pkg/agent"
+	"github.com/sipeed/picoclaw/pkg/bus"
 	"github.com/sipeed/picoclaw/pkg/config"
+	"github.com/sipeed/picoclaw/pkg/logger"
 	"github.com/sipeed/picoclaw/pkg/providers"
 
 	"github.com/holepunchto/bareclaw/pkg/rpc"
 )
 
 func main() {
+	// stdout is the bare-rpc transport — picoclaw's console logger writes there
+	// by default and would corrupt the frame stream. Silence every terminal sink
+	// before anything can log: all communication with the Bare side is RPC-based.
+	logger.DisableConsole()
+	log.SetOutput(io.Discard)
+
+	// Config file (optional — individual flags below take precedence or can be used alone)
 	configPath := flag.String("config", "", "path to picoclaw config file")
+	provider := flag.String("provider", "", "LLM provider name (e.g. anthropic, openai)")
+	apiKey := flag.String("api-key", "", "API key for the provider")
+	modelName := flag.String("model", "", "model name / alias")
+	apiBase := flag.String("api-base", "", "custom API base URL")
 	flag.Parse()
 
-	cfg, err := loadConfig(*configPath)
+	cfg, err := config.LoadConfig(*configPath)
 	if err != nil {
-		log.Fatalf("config: %v", err)
+		// Nothing may be written to the terminal; signal failure via exit code.
+		os.Exit(1)
 	}
 
-	provider, modelID, err := providers.CreateProvider(cfg)
+	// Inject CLI-supplied values on top of whatever the file (or default) provided.
+	if *provider != "" || *apiKey != "" || *modelName != "" {
+		mc := &config.ModelConfig{
+			Provider:  *provider,
+			ModelName: *modelName,
+			Model:     *modelName,
+			APIBase:   *apiBase,
+			Enabled:   true,
+		}
+		if *apiKey != "" {
+			mc.SetAPIKey(*apiKey)
+		}
+		cfg.ModelList = append(cfg.ModelList, mc)
+	}
+	if *provider != "" {
+		cfg.Agents.Defaults.Provider = *provider
+	}
+	if *modelName != "" {
+		cfg.Agents.Defaults.ModelName = *modelName
+	}
+
+	llmProvider, modelID, err := providers.CreateProvider(cfg)
 	if err != nil {
-		log.Fatalf("provider: %v", err)
+		// Non-fatal: session/state commands work without an LLM. Chat replies
+		// with a CHUNK_ERROR frame instead.
+		llmProvider = nil
+		modelID = ""
 	}
 	if modelID != "" {
 		cfg.Agents.Defaults.ModelName = modelID
@@ -41,7 +77,7 @@ func main() {
 	delegate := rpc.NewStreamDelegate()
 	msgBus.SetStreamDelegate(delegate)
 
-	agentLoop := agent.NewAgentLoop(cfg, msgBus, provider)
+	agentLoop := agent.NewAgentLoop(cfg, msgBus, llmProvider)
 	defer agentLoop.Close()
 
 	server := rpc.NewServer(agentLoop, msgBus, delegate)
@@ -49,24 +85,15 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
 	defer stop()
 
-	// The RPC transport is stdin+stdout. stderr is left free for logs so the
-	// JS side can capture picoclaw diagnostics separately if needed.
 	if err := server.Listen(ctx, readWriter{os.Stdin, os.Stdout}); err != nil {
-		if ctx.Err() == nil {
-			log.Fatalf("rpc: %v", err)
+		// A read error (EOF on stdin) is the normal shutdown path when the Bare
+		// side closes the pipe; exit non-zero only on an unexpected failure.
+		if ctx.Err() == nil && err != io.EOF {
+			os.Exit(1)
 		}
 	}
 }
 
-func loadConfig(path string) (*config.Config, error) {
-	cfg, err := config.LoadConfig(path)
-	if err != nil {
-		return nil, fmt.Errorf("config load failed: %w", err)
-	}
-	return cfg, nil
-}
-
-// readWriter pairs stdin and stdout into a single io.ReadWriter for the RPC layer.
 type readWriter struct {
 	io.Reader
 	io.Writer

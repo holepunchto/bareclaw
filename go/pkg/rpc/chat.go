@@ -24,13 +24,25 @@ func (s *Server) handleChat(ctx context.Context, req *bare.Request) {
 	s.delegate.register("rpc", chatID, streamer)
 	defer s.delegate.unregister("rpc", chatID)
 
-	_, err := s.loop.ProcessDirectWithChannel(ctx, chatReq.Message, chatReq.SessionID, "rpc", chatID)
+	response, err := s.loop.ProcessDirectWithChannel(ctx, chatReq.Message, chatReq.SessionID, "rpc", chatID)
 	if err != nil {
-		errChunk := ChatChunk{Type: ChunkError, Content: err.Error()}
-		if data, encErr := c.Marshal(&errChunk); encErr == nil {
-			_, _ = respStream.Write(data)
-		}
+		writeChunk(respStream, ChatChunk{Type: ChunkError, Content: err.Error()})
+		respStream.Close()
+		return
 	}
 
+	// If the provider never streamed, deliver the full response as one Content
+	// frame so callers always receive the text exactly once. The Done frame is a
+	// pure terminator with no content, so the body is never delivered twice.
+	if !streamer.published {
+		writeChunk(respStream, ChatChunk{Type: ChunkContent, Content: response})
+	}
+	writeChunk(respStream, ChatChunk{Type: ChunkDone})
 	respStream.Close()
+}
+
+func writeChunk(stream *bare.OutgoingStream, chunk ChatChunk) {
+	if data, err := c.Marshal(&chunk); err == nil {
+		_, _ = stream.Write(data)
+	}
 }

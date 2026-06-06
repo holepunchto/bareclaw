@@ -1,0 +1,22 @@
+name: Prebuild
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  prebuild:
+    runs-on: ubuntu-latest
+    name: Prebuild
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go/go.mod
+      # Go cross-compiles every supported target from a single host, so the
+      # Makefile builds all of prebuilds/ in one shot.
+      - run: make build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: prebuilds
+          path: prebuilds/
+          if-no-files-found: error

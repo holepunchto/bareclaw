@@ -1,0 +1,23 @@
+name: Publish
+on:
+  push:
+    tags:
+      - v*
+permissions:
+  id-token: write
+  contents: write
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment:
+      name: npm
+    name: Publish
+    steps:
+      - uses: holepunchto/actions/node-base@v1
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go/go.mod
+      # Cross-compile all supported prebuilds before publishing so they ship in
+      # the npm tarball (see the `files` field in package.json).
+      - run: make build
+      - uses: holepunchto/actions/publish@v1
