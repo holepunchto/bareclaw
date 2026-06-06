@@ -8,9 +8,12 @@
     </filter>
   </defs>
 
+  <!-- parchment panel: keeps the brown wordmark + disclaimer readable on any theme -->
+  <rect x="0" y="20" width="500" height="180" rx="28" fill="#F4EAD8"/>
+
   <!-- mark: dark bear paw on a rough cream disc -->
   <g transform="translate(20,20)" filter="url(#rough)">
-    <circle cx="80" cy="84" r="76" fill="#ECE1CE"/>
+    <circle cx="80" cy="84" r="76" fill="#E3D2B2"/>
 
     <g fill="#3A2A20">
       <!-- claws: curved talons fanning above each toe -->
@@ -40,7 +43,7 @@
       picoclaw for Bare
     </text>
     <g transform="translate(2,160)" font-size="13" font-weight="700" letter-spacing="1.5">
-      <rect x="0" y="0" width="148" height="24" rx="12" fill="#3A2A20" fill-opacity="0.08"/>
+      <rect x="0" y="0" width="195" height="24" rx="12" fill="#3A2A20" fill-opacity="0.08"/>
       <text x="14" y="16" fill="#3A2A20">CLAUDE EXPERIMENT</text>
     </g>
   </g>
