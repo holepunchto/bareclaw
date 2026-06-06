@@ -1,0 +1,21 @@
+{
+  "name": "bareclaw",
+  "version": "0.1.0",
+  "description": "Bare library exposing picoclaw AI agent via RPC",
+  "main": "index.js",
+  "type": "module",
+  "imports": {
+    "#binary": {
+      "bare-linux-x64":    "./bin/picoclaw-rpc-linux-x64",
+      "bare-linux-arm64":  "./bin/picoclaw-rpc-linux-arm64",
+      "bare-darwin-x64":   "./bin/picoclaw-rpc-darwin-x64",
+      "bare-darwin-arm64": "./bin/picoclaw-rpc-darwin-arm64",
+      "bare-win32-x64":    "./bin/picoclaw-rpc-win32-x64.exe"
+    }
+  },
+  "dependencies": {
+    "bare-rpc": "^2.0.0",
+    "compact-encoding": "^2.0.0",
+    "bare-subprocess": "^3.0.0"
+  }
+}
