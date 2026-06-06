@@ -70,21 +70,25 @@ class Bareclaw extends ReadyResource {
     )
 
     const stream = req.createResponseStream()
-    for await (const chunk of stream) {
-      const { type, content } = codecs.chatChunk.decode(chunk)
-      const name = codecs.CHUNK_TYPE_NAMES[type]
-      const done = name === 'done' || name === 'error'
+    try {
+      for await (const chunk of stream) {
+        const { type, content } = codecs.chatChunk.decode(chunk)
+        const name = codecs.CHUNK_TYPE_NAMES[type]
+        const done = name === 'done' || name === 'error'
 
-      if (done) {
-        yield { type: name, done }
-        break
-      } else {
-        yield { type: name, content, done }
+        if (done) {
+          yield { type: name, done }
+          break
+        } else {
+          yield { type: name, content, done }
+        }
       }
+    } finally {
+      // Persist the (now updated) session history into the bee automatically.
+      // In a `finally` so it runs even when the caller breaks the stream early
+      // (a plain statement after the loop is skipped by the generator's return).
+      await this._persistSession(sessionId)
     }
-
-    // Persist the (now updated) session history into the bee automatically.
-    await this._persistSession(sessionId)
   }
 
   async session(scope = {}) {
