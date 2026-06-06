@@ -81,13 +81,16 @@ await bc.close() // flushes state to the bee, stops Go cleanly
 
 `store` is a `Corestore` (the library opens its own Hyperbee on it). Everything Go needs comes through `opts`:
 
-| option     | maps to                                     | notes                                |
-| ---------- | ------------------------------------------- | ------------------------------------ |
-| `provider` | picoclaw `--provider`                       | e.g. `ollama`, `anthropic`, `openai` |
-| `model`    | picoclaw `--model` (`model_name` + `model`) | e.g. `llama3.2`, `claude-...`        |
-| `apiKey`   | `--api-key`                                 | for hosted providers                 |
-| `apiBase`  | `--api-base`                                | custom endpoint                      |
-| `config`   | `--config`                                  | path to a full picoclaw config file  |
+| option         | type             | notes                                                                          |
+| -------------- | ---------------- | ------------------------------------------------------------------------------ |
+| `provider`     | string           | e.g. `ollama`, `anthropic`, `openai`                                           |
+| `model`        | string           | e.g. `llama3.2`, `claude-...` (sets picoclaw `model_name` + `model`)           |
+| `apiKey`       | string           | for hosted providers                                                            |
+| `apiBase`      | string           | custom endpoint                                                                 |
+| `config`       | object \| string | inline picoclaw config (merged over defaults) — **or** a path to a config file |
+| `builtinTools` | boolean          | keep picoclaw's built-in OS tools (default **off** — see below)                 |
+
+**Tools.** By default a bareclaw agent has **no** built-in tools — its tools come from [`registerTool`](#await-bcregistertoolname-description-schema-handler). picoclaw's built-in OS tools (file/exec/skills) act on the Go process, not your app, and make small models emit tool-call noise, so they're off unless you pass `builtinTools: true`.
 
 ### `await bc.session(scope = {})`
 
@@ -142,6 +145,19 @@ Flushes each session's final state to the bee, then shuts the Go process down gr
 - **JS-defined tools** executed by a Go agent — bridge the agent to anything in your Bare runtime.
 - **Bring your own model** — local (Ollama) or hosted — selected entirely through `opts`.
 
+## Examples
+
+Runnable P2P demos live in [`examples/`](examples/) (each is `bare examples/<file>`):
+
+| demo | what it shows |
+| --- | --- |
+| [`swarm-collab.js`](examples/swarm-collab.js) | two agents discover each other on a **Hyperswarm** topic and collaborate by relaying turns |
+| [`peer-scan-tool.js`](examples/peer-scan-tool.js) | a `registerTool` **P2P tool** — the agent joins a swarm, counts peers, and leaves |
+| [`dht-shared.js`](examples/dht-shared.js) | a **HyperDHT server** as a one-to-many hub: agents post ideas, the merged board fans back to all |
+| [`swarm-code-review.js`](examples/swarm-code-review.js) | a **multi-agent code-review panel with consensus** — 2 agents per lens (to see agreement), a correlator weighs findings over the DHT, verdict written to `review.md` |
+
+See [`examples/README.md`](examples/README.md) for details.
+
 ## Testing
 
 ```sh
@@ -155,7 +171,7 @@ Session/state tests run without an LLM. Chat and tool tests need a reachable mod
 This is an experiment — here's what's rough or unfinished, honestly:
 
 - **Streaming isn't token-by-token (yet).** picoclaw's streaming path isn't engaged for the Ollama provider in this RPC setup, so a reply usually arrives as a single `content` frame rather than incrementally. The `thinking` chunk type is wired but rarely emitted.
-- **Small local models leak tool calls as text.** With models like `llama3.2`, picoclaw's default agent (built-in tools + skill prompt) can make the model emit a raw tool-call JSON as its answer, which gets returned verbatim. Use a more capable model/provider for reliable tool use — or run with a trimmed picoclaw `config`.
+- **Small local models are noisy.** Built-in tools are off by default (which removes most tool-call-JSON noise), but tiny models like `llama3.2` can still spontaneously emit function-call-shaped JSON or ramble. Use a capable model/provider for sharp, reliable output and real tool use.
 - **Go still writes its own session JSONL to disk.** The bee is the bare-side source of truth, but picoclaw's internal store also persists to `~/.picoclaw` (or the configured dir). Fully routing that through the bee is future work.
 - **Live state-change events aren't fired.** The `CMD_STATE_CHANGED` push path exists but Go doesn't emit it yet; persistence happens after each chat turn and on `close()` instead.
 - **Whole-session blobs.** Each persist rewrites a session's full blob rather than appending deltas — fine for chats, wasteful for very long histories.

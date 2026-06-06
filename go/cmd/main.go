@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"flag"
 	"io"
 	"log"
@@ -14,6 +15,7 @@ import (
 	"github.com/sipeed/picoclaw/pkg/config"
 	"github.com/sipeed/picoclaw/pkg/logger"
 	"github.com/sipeed/picoclaw/pkg/providers"
+	"github.com/sipeed/picoclaw/pkg/tools"
 
 	"github.com/holepunchto/bareclaw/pkg/rpc"
 )
@@ -25,17 +27,28 @@ func main() {
 	logger.DisableConsole()
 	log.SetOutput(io.Discard)
 
-	// Config file (optional — individual flags below take precedence or can be used alone)
+	// Config is supplied by the Bare side: either inline JSON (preferred — passed
+	// straight through `opts.config`) or a file path. Individual flags below take
+	// precedence or can be used alone.
 	configPath := flag.String("config", "", "path to picoclaw config file")
+	configJSON := flag.String("config-json", "", "inline picoclaw config JSON, merged over defaults")
 	provider := flag.String("provider", "", "LLM provider name (e.g. anthropic, openai)")
 	apiKey := flag.String("api-key", "", "API key for the provider")
 	modelName := flag.String("model", "", "model name / alias")
 	apiBase := flag.String("api-base", "", "custom API base URL")
+	builtinTools := flag.Bool("builtin-tools", false, "keep picoclaw's built-in OS tools (off by default; bareclaw agents get tools via registerTool)")
 	flag.Parse()
 
-	cfg, err := config.LoadConfig(*configPath)
-	if err != nil {
-		// Nothing may be written to the terminal; signal failure via exit code.
+	var cfg *config.Config
+	var err error
+	if *configJSON != "" {
+		// Merge the inline config over the defaults (same as a config file would),
+		// so callers only specify what they want to change.
+		cfg = config.DefaultConfig()
+		if err = json.Unmarshal([]byte(*configJSON), cfg); err != nil {
+			os.Exit(1) // nothing may reach the terminal; signal via exit code
+		}
+	} else if cfg, err = config.LoadConfig(*configPath); err != nil {
 		os.Exit(1)
 	}
 
@@ -79,6 +92,17 @@ func main() {
 
 	agentLoop := agent.NewAgentLoop(cfg, msgBus, llmProvider)
 	defer agentLoop.Close()
+
+	// A bareclaw agent is lean by default: its tools come from the Bare side via
+	// registerTool, not picoclaw's built-in OS tools. Those built-ins operate on
+	// the Go process (not your app) and make small models emit tool-call noise,
+	// so clear them unless the caller explicitly opts back in. registerTool then
+	// populates this empty registry.
+	if !*builtinTools {
+		if a := agentLoop.GetRegistry().GetDefaultAgent(); a != nil {
+			a.Tools = tools.NewToolRegistry()
+		}
+	}
 
 	server := rpc.NewServer(agentLoop, msgBus, delegate)
 
