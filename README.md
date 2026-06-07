@@ -85,10 +85,10 @@ await bc.close() // flushes state to the bee, stops Go cleanly
 | -------------- | ---------------- | ------------------------------------------------------------------------------ |
 | `provider`     | string           | e.g. `ollama`, `anthropic`, `openai`                                           |
 | `model`        | string           | e.g. `llama3.2`, `claude-...` (sets picoclaw `model_name` + `model`)           |
-| `apiKey`       | string           | for hosted providers                                                            |
-| `apiBase`      | string           | custom endpoint                                                                 |
+| `apiKey`       | string           | for hosted providers                                                           |
+| `apiBase`      | string           | custom endpoint                                                                |
 | `config`       | object \| string | inline picoclaw config (merged over defaults) — **or** a path to a config file |
-| `builtinTools` | boolean          | keep picoclaw's built-in OS tools (default **off** — see below)                 |
+| `builtinTools` | boolean          | keep picoclaw's built-in OS tools (default **off** — see below)                |
 
 **Tools.** By default a bareclaw agent has **no** built-in tools — its tools come from [`registerTool`](#await-bcregistertoolname-description-schema-handler). picoclaw's built-in OS tools (file/exec/skills) act on the Go process, not your app, and make small models emit tool-call noise, so they're off unless you pass `builtinTools: true`.
 
@@ -149,11 +149,11 @@ Flushes each session's final state to the bee, then shuts the Go process down gr
 
 Runnable P2P demos live in [`examples/`](examples/) (each is `bare examples/<file>`):
 
-| demo | what it shows |
-| --- | --- |
-| [`swarm-collab.js`](examples/swarm-collab.js) | two agents discover each other on a **Hyperswarm** topic and collaborate by relaying turns |
-| [`peer-scan-tool.js`](examples/peer-scan-tool.js) | a `registerTool` **P2P tool** — the agent joins a swarm, counts peers, and leaves |
-| [`dht-shared.js`](examples/dht-shared.js) | a **HyperDHT server** as a one-to-many hub: agents post ideas, the merged board fans back to all |
+| demo                                                    | what it shows                                                                                                                                                        |
+| ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [`swarm-collab.js`](examples/swarm-collab.js)           | two agents discover each other on a **Hyperswarm** topic and collaborate by relaying turns                                                                           |
+| [`peer-scan-tool.js`](examples/peer-scan-tool.js)       | a `registerTool` **P2P tool** — the agent joins a swarm, counts peers, and leaves                                                                                    |
+| [`dht-shared.js`](examples/dht-shared.js)               | a **HyperDHT server** as a one-to-many hub: agents post ideas, the merged board fans back to all                                                                     |
 | [`swarm-code-review.js`](examples/swarm-code-review.js) | a **multi-agent code-review panel with consensus** — 2 agents per lens (to see agreement), a correlator weighs findings over the DHT, verdict written to `review.md` |
 
 See [`examples/README.md`](examples/README.md) for details.

@@ -59,17 +59,17 @@ each tool — no JS orchestration driving it.
 
 Tools available after `registerP2PTools(bc)`:
 
-| Tool | What it does |
-|---|---|
-| `swarm_join` | Join a named mesh topic, get a swarmId |
-| `swarm_broadcast` | Send to all connected peers |
-| `swarm_messages` | Poll the buffered inbox |
-| `swarm_peers` | List connected peer keys |
-| `swarm_close` | Leave and disconnect |
-| `dht_serve` | Start a server with a stable public key |
-| `dht_connect` | Connect to a server by z32 or hex key |
-| `dht_send` / `dht_messages` | Send and receive over that connection |
-| `key_info` | z32 ↔ hex ↔ byte-length conversion |
+| Tool                            | What it does                                     |
+| ------------------------------- | ------------------------------------------------ |
+| `swarm_join`                    | Join a named mesh topic, get a swarmId           |
+| `swarm_broadcast`               | Send to all connected peers                      |
+| `swarm_messages`                | Poll the buffered inbox                          |
+| `swarm_peers`                   | List connected peer keys                         |
+| `swarm_close`                   | Leave and disconnect                             |
+| `dht_serve`                     | Start a server with a stable public key          |
+| `dht_connect`                   | Connect to a server by z32 or hex key            |
+| `dht_send` / `dht_messages`     | Send and receive over that connection            |
+| `key_info`                      | z32 ↔ hex ↔ byte-length conversion               |
 | `codec_encode` / `codec_decode` | Encode/decode with a compact-encoding codec file |
 
 ## `swarm-code-review.js` — a multi-agent code review panel
