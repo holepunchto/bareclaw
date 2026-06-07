@@ -9,7 +9,6 @@
 // exactly as two agents on two machines would.
 
 const Hyperswarm = require('hyperswarm')
-const crypto = require('hypercore-crypto')
 const Corestore = require('corestore')
 const b4a = require('b4a')
 const { Bareclaw } = require('..')

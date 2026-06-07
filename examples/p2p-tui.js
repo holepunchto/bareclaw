@@ -270,7 +270,7 @@ class ChatApp {
     // as it fires. registerP2PTools then registers through this wrapper.
     const register = this.bc.registerTool.bind(this.bc)
     this.bc.registerTool = (name, description, schema, handler) =>
-      register(name, description, schema, async (input) => {
+      register(name, description, schema, (input) => {
         this.notifyTool(name, input)
         return handler(input)
       })
@@ -304,8 +304,9 @@ class ChatApp {
   _refresh() {
     const w = this._innerWidth()
     const blocks = this.entries.map((e) => renderEntry(e, w))
-    if (this.streaming && this.pending)
+    if (this.streaming && this.pending) {
       blocks.push(renderEntry({ role: 'assistant', text: this.pending }, w))
+    }
     this.vp.setContent(blocks.join('\n\n'))
     this.vp.gotoBottom()
   }

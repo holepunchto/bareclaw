@@ -72,6 +72,36 @@ Tools available after `registerP2PTools(bc)`:
 | `key_info`                      | z32 ↔ hex ↔ byte-length conversion               |
 | `codec_encode` / `codec_decode` | Encode/decode with a compact-encoding codec file |
 
+## `p2p-tui.js` — chat with a P2P agent in a terminal UI
+
+```sh
+bare examples/p2p-tui.js [store-path]
+```
+
+An interactive [bare-tui](https://github.com/holepunchto/bare-tui) chat front-end
+for an agent that has the full `registerP2PTools(bc)` toolkit. You type, the agent
+streams its reply into a scrollable transcript, and every tool call (`swarm_join`,
+`swarm_broadcast`, …) shows up live with a yellow **TOOL** badge — so you can see
+exactly which calls actually executed versus what the model only narrated.
+
+- **Lazy boot** — the UI paints immediately and the agent starts up in the
+  background, reporting progress (`opening corestore…`, `spawning agent…`) in the
+  status bar instead of blocking on a blank screen.
+- **Store path arg** — pass a Corestore path to run several agents at once, each
+  with its own state, and have them talk over a shared topic:
+
+  ```sh
+  bare examples/p2p-tui.js ./store-a   # terminal 1
+  bare examples/p2p-tui.js ./store-b   # terminal 2
+  ```
+
+  In both, ask the agent to join the same Hyperswarm topic (e.g. `"lobby"`); wait
+  a few seconds for discovery, then broadcast from one and read messages on the
+  other.
+
+Tool-calling reliability depends heavily on the model — set a capable one in
+`OPTS` (the example defaults to a small local `lfm2.5`).
+
 ## `swarm-code-review.js` — a multi-agent code review panel
 
 ```sh

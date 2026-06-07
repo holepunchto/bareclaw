@@ -1,5 +1,3 @@
-const test = require('brittle')
-const tmp = require('test-tmp')
 const Corestore = require('corestore')
 const { Bareclaw } = require('.')
 

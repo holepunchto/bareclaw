@@ -2,15 +2,22 @@
   "name": "bareclaw",
   "version": "0.1.0",
   "description": "Bare library exposing picoclaw AI agent via RPC",
-  "main": "index.js",
+  "exports": {
+    "./package": "./package.json",
+    ".": {
+      "types": "./index.d.ts",
+      "default": "./index.js"
+    }
+  },
   "scripts": {
-    "test": "brittle-bare test/all.mjs",
-    "format": "prettier --write .",
-    "lint": "prettier --check .",
+    "format": "prettier . --write",
+    "test": "brittle-bare test/index.js",
+    "lint": "prettier . --check && lunte",
     "build": "make build"
   },
   "files": [
     "index.js",
+    "index.d.ts",
     "lib",
     "assets",
     "prebuilds"
@@ -50,8 +57,19 @@
     "corestore": "^7.10.1",
     "hyperdht": "^6.32.0",
     "hyperswarm": "^4.17.0",
+    "lunte": "^1.8.0",
     "prettier": "^3.8.3",
     "prettier-config-holepunch": "^2.0.0",
     "test-tmp": "^1.4.0"
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/holepunchto/bareclaw.git"
+  },
+  "author": "Holepunch Inc",
+  "license": "Apache-2.0",
+  "bugs": {
+    "url": "https://github.com/holepunchto/bareclaw/issues"
+  },
+  "homepage": "https://github.com/holepunchto/bareclaw"
 }
