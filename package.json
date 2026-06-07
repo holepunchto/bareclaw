@@ -1,6 +1,6 @@
 {
   "name": "bareclaw",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Bare library exposing picoclaw AI agent via RPC",
   "exports": {
     "./package": "./package.json",
