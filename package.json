@@ -43,8 +43,9 @@
     "require-asset": "^1.2.2"
   },
   "devDependencies": {
-    "bare-process": "^4.4.1",
     "bare-path": "^3.0.1",
+    "bare-process": "^4.4.1",
+    "bare-tui": "^0.0.1",
     "brittle": "^4.0.0",
     "corestore": "^7.10.1",
     "hyperdht": "^6.32.0",
