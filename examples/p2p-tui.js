@@ -229,7 +229,7 @@ class ChatApp {
 
     const c = msg.chunk
     if (c.type === 'content') this.pending += c.content
-    else if (c.type === 'error') this.pending += '\n[stream error]'
+    else if (c.type === 'error') this.pending += `\n[error] ${c.content || 'stream error'}`
 
     // 'done'/'error' end the turn's content — commit it as a finished entry and
     // stop the spinner, but keep pulling once more to let the generator finish.
