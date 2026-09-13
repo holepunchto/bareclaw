@@ -1,0 +1,131 @@
+{
+  "version": 1,
+  "schema": [
+    {
+      "id": 0,
+      "name": "@bareclaw/chat",
+      "request": {
+        "name": "@bareclaw/chat-request",
+        "stream": false
+      },
+      "response": {
+        "name": "@bareclaw/chat-chunk",
+        "stream": true
+      },
+      "version": 1
+    },
+    {
+      "id": 1,
+      "name": "@bareclaw/session-create",
+      "request": {
+        "name": "@bareclaw/session-scope",
+        "stream": false
+      },
+      "response": {
+        "name": "@bareclaw/session-key",
+        "stream": false
+      },
+      "version": 1
+    },
+    {
+      "id": 2,
+      "name": "@bareclaw/session-list",
+      "request": {
+        "name": "@bareclaw/empty",
+        "stream": false
+      },
+      "response": {
+        "name": "@bareclaw/session-list",
+        "stream": false
+      },
+      "version": 1
+    },
+    {
+      "id": 3,
+      "name": "@bareclaw/session-export",
+      "request": {
+        "name": "@bareclaw/session-key",
+        "stream": false
+      },
+      "response": {
+        "name": "@bareclaw/session-blob",
+        "stream": false
+      },
+      "version": 1
+    },
+    {
+      "id": 4,
+      "name": "@bareclaw/session-import",
+      "request": {
+        "name": "@bareclaw/session-blob",
+        "stream": false
+      },
+      "response": {
+        "name": "@bareclaw/empty",
+        "stream": false
+      },
+      "version": 1
+    },
+    {
+      "id": 5,
+      "name": "@bareclaw/state-export",
+      "request": {
+        "name": "@bareclaw/empty",
+        "stream": false
+      },
+      "response": {
+        "name": "@bareclaw/state-blob",
+        "stream": false
+      },
+      "version": 1
+    },
+    {
+      "id": 6,
+      "name": "@bareclaw/state-import",
+      "request": {
+        "name": "@bareclaw/state-blob",
+        "stream": false
+      },
+      "response": {
+        "name": "@bareclaw/empty",
+        "stream": false
+      },
+      "version": 1
+    },
+    {
+      "id": 7,
+      "name": "@bareclaw/tool-register",
+      "request": {
+        "name": "@bareclaw/tool-def",
+        "stream": false
+      },
+      "response": {
+        "name": "@bareclaw/empty",
+        "stream": false
+      },
+      "version": 1
+    },
+    {
+      "id": 8,
+      "name": "@bareclaw/tool-exec",
+      "request": {
+        "name": "@bareclaw/tool-call",
+        "stream": false
+      },
+      "response": {
+        "name": "@bareclaw/tool-result",
+        "stream": false
+      },
+      "version": 1
+    },
+    {
+      "id": 9,
+      "name": "@bareclaw/state-changed",
+      "request": {
+        "name": "@bareclaw/state-chunk",
+        "send": true
+      },
+      "version": 1
+    }
+  ]
+}

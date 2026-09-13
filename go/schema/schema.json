@@ -1,0 +1,289 @@
+{
+  "version": 1,
+  "schema": [
+    {
+      "name": "empty",
+      "namespace": "bareclaw",
+      "compact": false,
+      "flagsPosition": -1,
+      "fields": []
+    },
+    {
+      "name": "chat-request",
+      "namespace": "bareclaw",
+      "compact": false,
+      "flagsPosition": 2,
+      "fields": [
+        {
+          "name": "sessionId",
+          "required": true,
+          "type": "string",
+          "version": 1
+        },
+        {
+          "name": "message",
+          "required": true,
+          "type": "string",
+          "version": 1
+        },
+        {
+          "name": "model",
+          "type": "string",
+          "version": 1
+        }
+      ]
+    },
+    {
+      "name": "chunk-type",
+      "namespace": "bareclaw",
+      "offset": 1,
+      "enum": [
+        {
+          "key": "content",
+          "version": 1
+        },
+        {
+          "key": "thinking",
+          "version": 1
+        },
+        {
+          "key": "done",
+          "version": 1
+        },
+        {
+          "key": "error",
+          "version": 1
+        }
+      ],
+      "strings": true
+    },
+    {
+      "name": "chat-chunk",
+      "namespace": "bareclaw",
+      "compact": false,
+      "flagsPosition": 1,
+      "fields": [
+        {
+          "name": "type",
+          "required": true,
+          "type": "@bareclaw/chunk-type",
+          "version": 1
+        },
+        {
+          "name": "content",
+          "type": "string",
+          "version": 1
+        }
+      ]
+    },
+    {
+      "name": "session-scope",
+      "namespace": "bareclaw",
+      "compact": false,
+      "flagsPosition": 0,
+      "fields": [
+        {
+          "name": "agentId",
+          "type": "string",
+          "version": 1
+        },
+        {
+          "name": "channel",
+          "type": "string",
+          "version": 1
+        },
+        {
+          "name": "account",
+          "type": "string",
+          "version": 1
+        },
+        {
+          "name": "peer",
+          "type": "string",
+          "version": 1
+        }
+      ]
+    },
+    {
+      "name": "session-key",
+      "namespace": "bareclaw",
+      "compact": false,
+      "flagsPosition": -1,
+      "fields": [
+        {
+          "name": "key",
+          "required": true,
+          "type": "string",
+          "version": 1
+        }
+      ]
+    },
+    {
+      "name": "session-list",
+      "namespace": "bareclaw",
+      "compact": false,
+      "flagsPosition": -1,
+      "fields": [
+        {
+          "name": "keys",
+          "required": true,
+          "array": true,
+          "type": "string",
+          "version": 1
+        }
+      ]
+    },
+    {
+      "name": "session-blob",
+      "namespace": "bareclaw",
+      "compact": false,
+      "flagsPosition": -1,
+      "fields": [
+        {
+          "name": "key",
+          "required": true,
+          "type": "string",
+          "version": 1
+        },
+        {
+          "name": "data",
+          "required": true,
+          "type": "buffer",
+          "version": 1
+        }
+      ]
+    },
+    {
+      "name": "state-blob",
+      "namespace": "bareclaw",
+      "compact": false,
+      "flagsPosition": -1,
+      "fields": [
+        {
+          "name": "sessions",
+          "required": true,
+          "array": true,
+          "type": "@bareclaw/session-blob",
+          "version": 1
+        }
+      ]
+    },
+    {
+      "name": "tool-def",
+      "namespace": "bareclaw",
+      "compact": false,
+      "flagsPosition": 2,
+      "fields": [
+        {
+          "name": "name",
+          "required": true,
+          "type": "string",
+          "version": 1
+        },
+        {
+          "name": "description",
+          "required": true,
+          "type": "string",
+          "version": 1
+        },
+        {
+          "name": "inputSchema",
+          "type": "buffer",
+          "version": 1
+        }
+      ]
+    },
+    {
+      "name": "tool-call",
+      "namespace": "bareclaw",
+      "compact": false,
+      "flagsPosition": -1,
+      "fields": [
+        {
+          "name": "callId",
+          "required": true,
+          "type": "string",
+          "version": 1
+        },
+        {
+          "name": "name",
+          "required": true,
+          "type": "string",
+          "version": 1
+        },
+        {
+          "name": "input",
+          "required": true,
+          "type": "buffer",
+          "version": 1
+        }
+      ]
+    },
+    {
+      "name": "tool-result",
+      "namespace": "bareclaw",
+      "compact": false,
+      "flagsPosition": 1,
+      "fields": [
+        {
+          "name": "callId",
+          "required": true,
+          "type": "string",
+          "version": 1
+        },
+        {
+          "name": "output",
+          "type": "buffer",
+          "version": 1
+        },
+        {
+          "name": "errMsg",
+          "type": "string",
+          "version": 1
+        }
+      ]
+    },
+    {
+      "name": "state-field",
+      "namespace": "bareclaw",
+      "offset": 1,
+      "enum": [
+        {
+          "key": "history",
+          "version": 1
+        },
+        {
+          "key": "summary",
+          "version": 1
+        }
+      ],
+      "strings": true
+    },
+    {
+      "name": "state-chunk",
+      "namespace": "bareclaw",
+      "compact": false,
+      "flagsPosition": -1,
+      "fields": [
+        {
+          "name": "sessionKey",
+          "required": true,
+          "type": "string",
+          "version": 1
+        },
+        {
+          "name": "field",
+          "required": true,
+          "type": "@bareclaw/state-field",
+          "version": 1
+        },
+        {
+          "name": "data",
+          "required": true,
+          "type": "buffer",
+          "version": 1
+        }
+      ]
+    }
+  ]
+}

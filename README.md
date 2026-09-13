@@ -20,13 +20,13 @@
 
 `bareclaw` takes [**picoclaw**](https://github.com/sipeed/picoclaw) (a capable, multi-provider AI agent written in Go) and exposes it as a clean, embeddable **[Bare](https://github.com/holepunchto/bare)** module.
 
-The trick: the Go agent is compiled to a small binary, spawned as a subprocess, and driven **purely over [`bare-rpc`](https://github.com/holepunchto/bare-rpc)** across stdio using [`compact-encoding`](https://github.com/holepunchto/compact-encoding) frames. From JavaScript you get a tidy `async`/streaming API; under the hood it's a Go agent loop.
+The trick: the Go agent is compiled to a binary, spawned as a subprocess, and driven **purely over [`hrpc`](https://github.com/holepunchto/hrpc)** on a pipe handed to it as fd 3. The wire schema is defined once in `build.js` and generated for both sides: [`hyperschema`](https://github.com/holepunchto/hyperschema) + `hrpc` for JavaScript, [`hyperschema-golang`](https://github.com/holepunchto/hyperschema-golang) + [`hrpc-golang`](https://github.com/holepunchto/hrpc-golang) for Go, over [`bare-rpc-golang`](https://github.com/holepunchto/bare-rpc-golang). From JavaScript you get a tidy `async`/streaming API; under the hood it's a Go agent loop.
 
 Sessions and conversation history are persisted into a Hyperbee on the Bare side. The Go process is the stateless engine; the bee is the source of truth. Pass it a `Corestore` and it does the rest.
 
 ```
-┌────────────────────────┐        bare-rpc over stdio         ┌──────────────────────┐
-│  Bareclaw (JS / Bare)  │  ─── compact-encoding frames ───▶  │  picoclaw (Go binary)│
+┌────────────────────────┐          hrpc over fd 3            ┌──────────────────────┐
+│  Bareclaw (JS / Bare)  │  ─── chat / sessions / tools ───▶  │  picoclaw (Go binary)│
 │  • Hyperbee state      │  ◀── tool calls / chat stream ───  │  • agent loop        │
 │  • tool handlers (JS)  │                                    │  • LLM providers     │
 └────────────────────────┘                                    └──────────────────────┘
@@ -44,6 +44,12 @@ Prebuilt Go binaries for darwin/linux/win32 × x64/arm64 ship in `prebuilds/` (r
 make build            # cross-compile all targets into prebuilds/
 # or a single host build:
 go -C go build -o ../prebuilds/darwin-arm64/bareclaw ./cmd
+```
+
+The RPC surface lives in `build.js`. After changing it, regenerate `spec/` (JavaScript) and `go/schema`, `go/hrpc` (Go) with:
+
+```sh
+npm run build:spec
 ```
 
 You'll also need an LLM the agent can reach — e.g. a local [Ollama](https://ollama.com) (`ollama run llama3.2`) or an API key for Anthropic/OpenAI/etc.
@@ -136,7 +142,7 @@ await bc.registerTool(
 
 ### `await bc.close()`
 
-Flushes each session's final state to the bee, then shuts the Go process down gracefully (closes its stdin so it reaches EOF and exits).
+Flushes each session's final state to the bee, then shuts the Go process down gracefully (closes the RPC pipe so it reaches EOF and exits).
 
 ## What's possible
 
@@ -161,7 +167,7 @@ See [`examples/README.md`](examples/README.md) for details.
 ## Testing
 
 ```sh
-npm test          # brittle-bare test/all.mjs
+npm test          # brittle-bare test/index.js
 ```
 
 Session/state tests run without an LLM. Chat and tool tests need a reachable model (the helpers default to `ollama` + `llama3.2`).
@@ -180,5 +186,5 @@ This is an experiment — here's what's rough or unfinished, honestly:
 ## Credits
 
 - [**picoclaw**](https://github.com/sipeed/picoclaw) — the Go AI agent doing the real work.
-- [**Bare**](https://github.com/holepunchto/bare) + [**bare-rpc**](https://github.com/holepunchto/bare-rpc) + [**Hyperbee**](https://github.com/holepunchto/hyperbee) — the Holepunch runtime and primitives.
+- [**Bare**](https://github.com/holepunchto/bare) + [**hrpc**](https://github.com/holepunchto/hrpc) / [**hrpc-golang**](https://github.com/holepunchto/hrpc-golang) + [**Hyperbee**](https://github.com/holepunchto/hyperbee) — the Holepunch runtime and primitives.
 - 🤖 Wired together by **Claude** as an experiment in bridging a Go agent into the Bare world.

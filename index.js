@@ -3,7 +3,6 @@ const ReadyResource = require('ready-resource')
 const b4a = require('b4a')
 
 const { spawnRPC } = require('./lib/spawn.js')
-const codecs = require('./lib/codecs.js')
 
 class Bareclaw extends ReadyResource {
   constructor(store, opts = {}) {
@@ -14,6 +13,7 @@ class Bareclaw extends ReadyResource {
     this._opts = opts
     this._rpc = null
     this._proc = null
+    this._pipe = null
     this._tools = new Map()
 
     this.ready().catch(noop)
@@ -22,9 +22,13 @@ class Bareclaw extends ReadyResource {
   async _open() {
     await this._bee.ready()
 
-    const { rpc, proc } = spawnRPC(this._opts, (req) => this._onRequest(req))
+    const { rpc, proc, pipe } = spawnRPC(this._opts)
     this._rpc = rpc
     this._proc = proc
+    this._pipe = pipe
+
+    rpc.onToolExec((call) => this._onToolExec(call))
+    rpc.onStateChanged((chunk) => this._persistSession(chunk.sessionKey))
 
     await this._loadFromStore()
   }
@@ -40,12 +44,11 @@ class Bareclaw extends ReadyResource {
     await this._shutdownProc()
     this._rpc = null
     this._proc = null
+    this._pipe = null
     this._bee = null
   }
 
-  // Go's RPC loop blocks on a stdin read; SIGTERM is trapped by its signal
-  // handler but can't interrupt that read. Closing stdin delivers EOF, so Go
-  // returns from Listen and exits cleanly. SIGKILL is a backstop if it doesn't.
+  // Closing the RPC pipe delivers EOF to Go, which exits cleanly; SIGKILL is the backstop.
   _shutdownProc() {
     const proc = this._proc
     return new Promise((resolve) => {
@@ -54,52 +57,37 @@ class Bareclaw extends ReadyResource {
         clearTimeout(force)
         resolve()
       })
-      proc.stdin.end()
+      this._pipe.end()
     })
   }
 
   async *chat(sessionId, message, opts = {}) {
     if (!this.opened) await this.ready()
-    const req = this._rpc.request(codecs.CMD_CHAT)
-    req.send(
-      codecs.chatRequest.encode({
-        sessionId,
-        message,
-        model: opts.model || this._opts.model || ''
-      })
-    )
-
-    const stream = req.createResponseStream()
+    const stream = this._rpc.chat({
+      sessionId,
+      message,
+      model: opts.model || this._opts.model || ''
+    })
     try {
-      for await (const chunk of stream) {
-        const { type, content } = codecs.chatChunk.decode(chunk)
-        const name = codecs.CHUNK_TYPE_NAMES[type]
-        const done = name === 'done' || name === 'error'
-
+      for await (const { type, content } of stream) {
+        const done = type === 'done' || type === 'error'
         if (done) {
-          yield { type: name, done }
+          yield type === 'error' ? { type, content, done } : { type, done }
           break
-        } else {
-          yield { type: name, content, done }
         }
+        yield { type, content, done }
       }
     } finally {
-      // Persist the (now updated) session history into the bee automatically.
-      // In a `finally` so it runs even when the caller breaks the stream early
-      // (a plain statement after the loop is skipped by the generator's return).
+      // Runs even when the caller breaks out early, so the turn is always persisted.
       await this._persistSession(sessionId)
     }
   }
 
   async session(scope = {}) {
     if (!this.opened) await this.ready()
-    const req = this._rpc.request(codecs.CMD_SESSION_CREATE)
-    req.send(codecs.sessionScope.encode(scope))
-    const reply = await req.reply()
-    const key = codecs.sessionKey.decode(reply).key
+    const { key } = await this._rpc.sessionCreate(scope)
 
-    // The bee is the session registry — record the scope so the session is
-    // listed (and survives restarts) even before any chat history exists.
+    // The bee is the session registry, so the session is listed before any history exists.
     const w = this._bee.write()
     w.tryPut(b4a.from(`picoclaw/sessions/${key}/scope`), b4a.from(JSON.stringify(scope)))
     await w.flush()
@@ -114,17 +102,13 @@ class Bareclaw extends ReadyResource {
 
   async exportSession(key) {
     if (!this.opened) await this.ready()
-    const req = this._rpc.request(codecs.CMD_SESSION_EXPORT)
-    req.send(codecs.sessionKey.encode({ key }))
-    const reply = await req.reply()
-    return codecs.sessionBlob.decode(reply).data
+    const { data } = await this._rpc.sessionExport({ key })
+    return data
   }
 
   async importSession(key, blob) {
     if (!this.opened) await this.ready()
-    const req = this._rpc.request(codecs.CMD_SESSION_IMPORT)
-    req.send(codecs.sessionBlob.encode({ key, data: blob }))
-    await req.reply()
+    await this._rpc.sessionImport({ key, data: blob })
 
     const w = this._bee.write()
     w.tryPut(b4a.from(`picoclaw/sessions/${key}/data`), blob)
@@ -134,42 +118,29 @@ class Bareclaw extends ReadyResource {
   async registerTool(name, description, schema, handler) {
     if (!this.opened) await this.ready()
     this._tools.set(name, handler)
-    const req = this._rpc.request(codecs.CMD_TOOL_REGISTER)
-    req.send(codecs.toolDef.encode({ name, description, inputSchema: schema }))
-    await req.reply()
+    await this._rpc.toolRegister({
+      name,
+      description,
+      inputSchema: schema ? b4a.from(JSON.stringify(schema)) : null
+    })
   }
 
-  async _onRequest(req) {
-    switch (req.command) {
-      case codecs.CMD_TOOL_EXEC: {
-        const call = codecs.toolCall.decode(req.data)
-        const handler = this._tools.get(call.name)
-        try {
-          const output = handler ? await handler(call.input) : null
-          await req.reply(codecs.toolResult.encode({ callId: call.callId, output }))
-        } catch (err) {
-          await req.reply(
-            codecs.toolResult.encode({
-              callId: call.callId,
-              output: null,
-              errMsg: err.message || String(err)
-            })
-          )
-        }
-        break
+  async _onToolExec(call) {
+    const handler = this._tools.get(call.name)
+    try {
+      const input = JSON.parse(b4a.toString(call.input))
+      const output = handler ? await handler(input) : null
+      return {
+        callId: call.callId,
+        output: output === null || output === undefined ? null : b4a.from(JSON.stringify(output)),
+        errMsg: ''
       }
-
-      case codecs.CMD_STATE_CHANGED: {
-        if (!this._bee) break
-        const chunk = codecs.stateChunk.decode(req.data)
-        await this._persistSession(chunk.sessionKey)
-        break
-      }
+    } catch (err) {
+      return { callId: call.callId, output: null, errMsg: err.message || String(err) }
     }
   }
 
-  // Export a session's current state from Go and store it in the bee under its
-  // canonical per-session key. Safe to call after any turn that mutated state.
+  // Export a session's current state from Go and store it in the bee under its canonical key.
   async _persistSession(key) {
     if (!this._rpc || !this._bee) return
     const blob = await this.exportSession(key)
@@ -179,15 +150,11 @@ class Bareclaw extends ReadyResource {
   }
 
   async _loadFromStore() {
-    // Restore each persisted session into Go so chat history survives restarts.
     const keys = await this._listStoreKeys('picoclaw/sessions/')
-    for (const sessionKey of keys) {
-      const entry = await this._bee.get(b4a.from(`picoclaw/sessions/${sessionKey}/data`))
+    for (const key of keys) {
+      const entry = await this._bee.get(b4a.from(`picoclaw/sessions/${key}/data`))
       if (!entry || !entry.value || entry.value.length === 0) continue
-
-      const req = this._rpc.request(codecs.CMD_SESSION_IMPORT)
-      req.send(codecs.sessionBlob.encode({ key: sessionKey, data: entry.value }))
-      await req.reply()
+      await this._rpc.sessionImport({ key, data: entry.value })
     }
   }
 

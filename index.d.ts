@@ -1,7 +1,7 @@
 /**
  * bareclaw — a Bare library exposing the picoclaw AI agent over RPC.
  *
- * A {@link Bareclaw} instance spawns the Go `bareclaw` binary, persists session
+ * A {@link Bareclaw} instance spawns the Go `bareclaw` binary (driving it over hrpc on fd 3), persists session
  * state into a Hyperbee on the given Corestore, and streams chat responses back
  * as async iterables. Tools registered with {@link Bareclaw.registerTool} run in
  * JS and are invoked by the agent on demand.
@@ -40,7 +40,8 @@ export interface ChatOptions {
 /** A streamed chat chunk. `content`/`thinking` carry text; `done`/`error` end the turn. */
 export type ChatChunk =
   | { type: 'content' | 'thinking'; content: string; done: false }
-  | { type: 'done' | 'error'; done: true }
+  | { type: 'done'; done: true }
+  | { type: 'error'; content: string; done: true }
 
 /** Handler invoked when the agent calls a registered tool. */
 export type ToolHandler = (input: any) => unknown | Promise<unknown>
